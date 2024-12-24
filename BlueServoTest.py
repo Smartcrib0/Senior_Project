@@ -4,8 +4,8 @@ import time
 # Set GPIO mode to BCM
 GPIO.setmode(GPIO.BCM)
 
-# Define the GPIO pin for the servo
-servo_pin = 18  # You can change this to your connected GPIO pin
+# Set the GPIO pin for the servo
+servo_pin = 18  # GPIO pin connected to the servo motor
 
 # Set the GPIO pin as output
 GPIO.setup(servo_pin, GPIO.OUT)
