@@ -1,7 +1,7 @@
 import cv2
 
 # Open the camera (0 for the first camera, 1 for the second, etc.)
-camera = cv2.VideoCapture(1)
+camera = cv2.VideoCapture(0)
 
 if not camera.isOpened():
     print("Error: Could not access the camera.")
