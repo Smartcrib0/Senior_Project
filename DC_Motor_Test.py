@@ -20,7 +20,7 @@ pwm.start(0)  # Start PWM with 0% duty cycle (motor off initially)
 def move_forward():
     GPIO.output(IN1, GPIO.HIGH)
     GPIO.output(IN2, GPIO.LOW)
-    pwm.ChangeDutyCycle(75)  # Set motor speed to 75% (adjust as needed)
+    pwm.ChangeDutyCycle(0)  # Set motor speed to 75% (adjust as needed)
 
 # Start motor rotation in one direction (forward)
 move_forward()
