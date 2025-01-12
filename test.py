@@ -18,7 +18,7 @@ def set_motor_speed(speed):
     تضبط سرعة الموتور
     :param speed: سرعة الموتور بين 0 و 100
     """
-    if 0 <= speed <= 100:
+    if 0 <= speed <= 10:
         pwm.ChangeDutyCycle(speed)  # تغيير دورة العمل لتحديد السرعة
         print(f"الموتور يعمل بسرعة {speed}%")
     else:
@@ -27,14 +27,14 @@ def set_motor_speed(speed):
 try:
     while True:
         # اطلب من المستخدم إدخال السرعة
-        user_speed = int(input("أدخل السرعة المطلوبة (0-100): "))
+        user_speed = int(input(10))
         set_motor_speed(user_speed)  # ضبط السرعة
 
 except KeyboardInterrupt:
-    print("تم إيقاف البرنامج بواسطة المستخدم.")
+    print("The User Stopped The Motor")
 
 finally:
-    print("إيقاف الموتور")
+    print("Motor Stop")
     pwm.ChangeDutyCycle(0)  # إيقاف الموتور
     pwm.stop()  # إيقاف PWM
     GPIO.cleanup()  # تنظيف إعدادات GPIO
