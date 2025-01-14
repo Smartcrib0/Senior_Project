@@ -10,7 +10,7 @@ IN2 = 27  # دبوس للتحكم بالاتجاه الثاني
 GPIO.setup(IN1, GPIO.OUT)
 GPIO.setup(IN2, GPIO.OUT)
 
-# إعداد السرعة باستخدام PWM (يمكن استخدام IN1 أو IN2)
+# إعداد PWM على دبوس IN1
 pwm = GPIO.PWM(IN1, 100)  # تردد 100 هرتز
 pwm.start(0)  # بدء PWM مع دورة عمل 0% (الموتور متوقف)
 
@@ -27,13 +27,14 @@ def move_backward(speed):
     pwm.ChangeDutyCycle(speed)
 
 try:
-    print("الموتور يتحرك للأمام بسرعة 50%")
-    move_forward(50)  # تشغيل الموتور للأمام بسرعة 50%
-    time.sleep(5)  # الانتظار لمدة 5 ثوانٍ
+    while True:
+        print("الموتور يتحرك للأمام")
+        move_forward(50)  # تشغيل الموتور للأمام بسرعة 50%
+        time.sleep(5)  # الانتظار لمدة 5 ثوانٍ
 
-    print("الموتور يتحرك للخلف بسرعة 75%")
-    move_backward(75)  # تشغيل الموتور للخلف بسرعة 75%
-    time.sleep(5)  # الانتظار لمدة 5 ثوانٍ
+        print("الموتور يتحرك للخلف")
+        move_backward(50)  # تشغيل الموتور للخلف بسرعة 50%
+        time.sleep(5)  # الانتظار لمدة 5 ثوانٍ
 
 except KeyboardInterrupt:
     print("تم إيقاف البرنامج بواسطة المستخدم.")
