@@ -25,14 +25,14 @@ def set_servo_rotation(speed):
     - Rotate counterclockwise: Duty cycle > 7.5%
     - Speed varies as you move further from 7.5%
     """
-    pwm.ChangeDutyCycle(speed)  # Set the duty cycle
-    time.sleep(0.1)             # Small delay for stability
+    pwm.ChangeDutyCycle(0.075)  # Set the duty cycle
+    time.sleep(1)             # Small delay for stability
 
 try:
     print("Rotating servo endlessly...")
     while True:
         set_servo_rotation(6.5)  # Rotate clockwise (adjust as needed for your servo)
-        time.sleep(0.01)         # Optional delay to control responsiveness
+        time.sleep(0.001)         # Optional delay to control responsiveness
 except KeyboardInterrupt:
     print("Program stopped by user.")
 finally:
