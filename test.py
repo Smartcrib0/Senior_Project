@@ -29,12 +29,12 @@ def move_backward(speed):
 try:
     while True:
         print("الموتور يتحرك للأمام")
-        move_forward(50)  # تشغيل الموتور للأمام بسرعة 50%
-        time.sleep(5)  # الانتظار لمدة 5 ثوانٍ
+        move_forward(30)  # تشغيل الموتور للأمام بسرعة 50%
+        time.sleep(2)  # الانتظار لمدة 5 ثوانٍ
 
         print("الموتور يتحرك للخلف")
-        move_backward(50)  # تشغيل الموتور للخلف بسرعة 50%
-        time.sleep(5)  # الانتظار لمدة 5 ثوانٍ
+        move_backward(30)  # تشغيل الموتور للخلف بسرعة 50%
+        time.sleep(2)  # الانتظار لمدة 5 ثوانٍ
 
 except KeyboardInterrupt:
     print("تم إيقاف البرنامج بواسطة المستخدم.")

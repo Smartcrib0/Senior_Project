@@ -31,11 +31,11 @@ def move_servo(angle):
 def rock_crib():
     while True:
         # Move to the left position (e.g., 45 degrees)
-        move_servo(45)
+        move_servo(0)
         time.sleep(1)  # Wait for the rocking to simulate a pause
         
         # Move to the right position (e.g., 135 degrees)
-        move_servo(135)
+        move_servo(120)
         time.sleep(1)  # Wait for the rocking to simulate a pause
 
 try:
