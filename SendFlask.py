@@ -16,7 +16,7 @@ SENSOR_PIN = 4  # GPIO pin connected to the DHT22
 
 # إعدادات الكاميرا والميكروفون
 CAMERA_INDEX = 0  # عادةً 0 للكاميرا الأساسية
-MIC_SOURCE = "hw:1"  # مصدر الصوت (الميكروفون)
+MIC_SOURCE = "hw:1,0"  # مصدر الصوت (الميكروفون)
 
 def start_live_stream():
     """
@@ -56,7 +56,11 @@ def start_live_stream():
                 break
 
             # إرسال الإطار إلى FFmpeg
-            process.stdin.write(frame.tobytes())
+            try:
+                process.stdin.write(frame.tobytes())
+            except BrokenPipeError:
+                print("FFmpeg process crashed. Restarting...")
+                process = subprocess.Popen(command, stdin=subprocess.PIPE)
 
     except KeyboardInterrupt:
         print("Streaming stopped.")
