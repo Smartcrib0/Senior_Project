@@ -20,7 +20,7 @@ pwm.start(0)
 # Function to move the servo to a specific angle
 def move_servo(angle):
     # The duty cycle for a given angle
-    duty = angle / 18 + 2
+    duty = angle / 18 + 1.5
     GPIO.output(servo_pin, True)
     pwm.ChangeDutyCycle(duty)
     time.sleep(0.5)  # Wait for the servo to reach the position
@@ -35,7 +35,7 @@ def rock_crib():
         time.sleep(1)  # Wait for the rocking to simulate a pause
         
         # Move to the right position (e.g., 135 degrees)
-        move_servo(120)
+        move_servo(90)
         time.sleep(1)  # Wait for the rocking to simulate a pause
 
 try:
