@@ -1,4 +1,7 @@
+import socket
 import cv2
+import threading
+import numpy as np
 import sounddevice as sd
 import wavio
 import threading
@@ -6,7 +9,7 @@ import requests
 import time
 
 # إعدادات السيرفر
-SERVER_URL = "http://185.37.12.147:5000/upload_audio"  # استبدل <server-ip> بعنوان السيرفر الخاص بك
+SERVER_URL = "http://<server-ip>:5000/upload_audio"  # استبدل <server-ip> بعنوان السيرفر الخاص بك
 
 # دالة لتسجيل الصوت وإرساله إلى السيرفر
 def record_and_send_audio():
@@ -31,35 +34,35 @@ def record_and_send_audio():
     
     threading.Thread(target=_record_audio, daemon=True).start()
 
-# دالة لبث الفيديو
+# Function to send video frames
 def stream_video():
-    cap = cv2.VideoCapture(0)  # افتح الكاميرا
-    if not cap.isOpened():
-        print("Error: Could not open the camera.")
-        return
-
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Error: Could not read frame from the camera.")
+            print("Error: Could not read frame from camera.")
             break
 
-        # عرض الفيديو محليًا
-        cv2.imshow("Raspberry Pi Camera", frame)
+        _, buffer = cv2.imencode('.jpg', frame)
+        send_to_server(buffer.tobytes(), "video")
 
-        # تحقق إذا تم الضغط على "q" للخروج
+        # Display the frame locally
+        cv2.imshow("Streaming Video", frame)
+
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        # تسجيل الصوت وإرساله إذا اكتشف فيديو
-        record_and_send_audio()
+# Function to manage audio recording in intervals
+def audio_thread():
+    while True:
+        record_audio()
 
-        time.sleep(6)  # انتظر قليلاً لتقليل التحميل على الشبكة
+# Start the audio recording thread
+audio_thread = threading.Thread(target=audio_thread, daemon=True)
+audio_thread.start()
 
-    cap.release()
-    cv2.destroyAllWindows()
-
-# تشغيل بث الفيديو
-if __name__ == "__main__":
+try:
     print("Starting video stream...")
     stream_video()
+finally:
+    cap.release()
+    cv2.destroyAllWindows()
