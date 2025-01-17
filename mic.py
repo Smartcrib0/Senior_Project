@@ -1,5 +1,8 @@
 import sounddevice as sd
 import wavio
+import requests
+import cv2
+import threading
 
 # دالة لتسجيل الصوت وإرساله إلى السيرفر
 def record_and_send_audio():
@@ -16,7 +19,7 @@ def record_and_send_audio():
     # إرسال الصوت إلى السيرفر
     with open(filename, 'rb') as audio_file:
         files = {'file': audio_file}
-        response = requests.post("http://<server_ip>:5000/process_audio", files=files)
+        response = requests.post("http://185.37.12.147:5000/process_audio", files=files)
         print("Audio response:", response.json())
 
 # في دالة إرسال الفيديو، بناءً على استجابة السيرفر:

@@ -4,7 +4,7 @@ import threading
 import time
 
 # عنوان السيرفر
-SERVER_URL = "http://<server_ip>:5000/process_video"
+SERVER_URL = "http://185.37.12.147:5000/process_video"
 
 # فتح الكاميرا
 cap = cv2.VideoCapture(0)
