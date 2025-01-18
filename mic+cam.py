@@ -5,8 +5,8 @@ import wavio
 import threading
 
 # عنوان السيرفر
-SERVER_URL_VIDEO = "http://<server_ip>:5000/process_video"
-SERVER_URL_AUDIO = "http://<server_ip>:5000/process_audio"
+SERVER_URL_VIDEO = "http://185.37.12.147:5000/process_video"
+SERVER_URL_AUDIO = "http://185.37.12.147:5000/process_audio"
 
 # فتح الكاميرا
 cap = cv2.VideoCapture(0)

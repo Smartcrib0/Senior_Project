@@ -4,6 +4,7 @@ import struct
 import threading
 import sounddevice as sd
 import numpy as np
+from queue import Queue
 
 # إعدادات السيرفر
 SERVER_IP = "185.37.12.147"  # IP الخاص بالخادم

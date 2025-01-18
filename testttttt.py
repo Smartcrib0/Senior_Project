@@ -20,7 +20,7 @@ except Exception as e:
 app = Flask(__name__)
 api = Api(app)
 
-pin = 17
+pin = 4
 sensor = Adafruit_DHT.DHT11
 
 

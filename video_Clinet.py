@@ -5,7 +5,7 @@ import time
 import picamera
 
 # تحديد عنوان السيرفر والمنفذ مباشرةً
-SERVER_HOST = '192.168.1.100'  # عنوان IP الخاص بالسيرفر
+SERVER_HOST = '10.10.13.13'
 SERVER_PORT = 8000             # المنفذ المستخدم
 
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
