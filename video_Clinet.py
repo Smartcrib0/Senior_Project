@@ -1,37 +1,50 @@
+import cv2
 import io
 import socket
 import struct
-import time
-import picamera
 
 # تحديد عنوان السيرفر والمنفذ مباشرةً
-SERVER_HOST = '10.10.13.13'
+SERVER_HOST = '192.168.1.100'  # عنوان IP الخاص بالسيرفر
 SERVER_PORT = 8000             # المنفذ المستخدم
 
+# إنشاء اتصال مع السيرفر
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client_socket.connect((SERVER_HOST, SERVER_PORT))
 
 connection = client_socket.makefile('wb')
+
 try:
-    with picamera.PiCamera() as camera:
-        camera.resolution = (640, 480)
-        print("Starting Camera...........")
-        time.sleep(2)  # تأخير لضمان أن الكاميرا جاهزة
+    # فتح الكاميرا باستخدام OpenCV
+    camera = cv2.VideoCapture(0)  # استخدام الكاميرا الافتراضية (ID = 0)
+    if not camera.isOpened():
+        print("Failed to open camera!")
+        exit(1)
+    
+    print("Starting Camera...")
+
+    while True:
+        # التقاط إطار من الكاميرا
+        ret, frame = camera.read()
+        if not ret:
+            print("Failed to grab frame!")
+            break
         
-        stream = io.BytesIO()
-        for foo in camera.capture_continuous(stream, 'jpeg'):
-            # إرسال طول الصورة أولاً
-            connection.write(struct.pack('<L', stream.tell()))
-            connection.flush()
-            
-            # إرسال بيانات الصورة
-            stream.seek(0)
-            connection.write(stream.read())
-            
-            # تنظيف التدفق لإعادة الاستخدام
-            stream.seek(0)
-            stream.truncate()
+        # تحويل الإطار إلى صيغة JPEG
+        _, buffer = cv2.imencode('.jpg', frame)
+        
+        # إرسال طول الصورة أولًا
+        connection.write(struct.pack('<L', len(buffer)))
+        connection.flush()
+        
+        # إرسال الصورة
+        connection.write(buffer.tobytes())
+
+        # إنهاء البث إذا تم الضغط على مفتاح 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
 finally:
-    # إغلاق الاتصال
+    # تحرير الموارد وإغلاق الاتصال
+    camera.release()
     connection.close()
     client_socket.close()
