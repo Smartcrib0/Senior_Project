@@ -4,8 +4,8 @@ import socket
 import struct
 
 # تحديد عنوان السيرفر والمنفذ مباشرةً
-SERVER_HOST = '192.168.1.100'  # عنوان IP الخاص بالسيرفر
-SERVER_PORT = 8000             # المنفذ المستخدم
+SERVER_HOST ='185.37.12.147'
+SERVER_PORT = 5000          # المنفذ المستخدم
 
 # إنشاء اتصال مع السيرفر
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
