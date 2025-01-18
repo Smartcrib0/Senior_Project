@@ -6,7 +6,7 @@ import time
 import numpy as np
 
 # إعدادات السيرفر
-SERVER_IP = "185.37.12.147"
+SERVER_IP = "192.168.173.235"
 RTMP_URL = f"rtmp://{SERVER_IP}/live/stream"
 TEMPERATURE_API_URL = f"http://{SERVER_IP}/api/temperature"
 
