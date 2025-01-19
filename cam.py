@@ -1,6 +1,6 @@
 import cv2
 from flask import Flask, Response
-import torch
+from ultralytics import YOLO
 import pyaudio
 import wave
 import threading
@@ -9,8 +9,7 @@ import threading
 app = Flask(__name__)
 
 # تحميل نموذج YOLOv8
-model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # YOLOv5 أسرع وأسهل لاستخدام نفس الفكرة مع YOLOv8
-model.classes = [0]  # التركيز فقط على اكتشاف الأشخاص (class 0)
+model = YOLO("yolov8n.pt")  # استخدم النموذج الذي قمت بتنزيله (yolov8n أو غيره)
 
 # إعدادات تسجيل الصوت
 FORMAT = pyaudio.paInt16
@@ -23,7 +22,7 @@ OUTPUT_FILENAME = "output.wav"
 # فتح الكاميرا
 camera = cv2.VideoCapture(0)
 
-# قفل للتحكم في التسجيل
+# قفل التحكم في التسجيل
 recording_lock = threading.Lock()
 
 def record_audio():
@@ -53,28 +52,27 @@ def record_audio():
         wf.writeframes(b''.join(frames))
         wf.close()
 
-# تعريف دالة لتوليد الفيديو
 def generate_frames():
+    """توليد الإطارات ومعالجتها باستخدام YOLO"""
     while True:
         success, frame = camera.read()
         if not success:
             break
         else:
             # تطبيق YOLO على الإطار
-            results = model(frame)
-            for detection in results.xyxy[0]:  # نتائج الكشف
-                x1, y1, x2, y2, conf, cls = detection
-                if int(cls) == 0:  # اكتشاف شخص
-                    # رسم صندوق حول الشخص
-                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                    cv2.putText(frame, f'Person {conf:.2f}', (int(x1), int(y1) - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            results = model.predict(frame, conf=0.5, verbose=False)  # تنفيذ التوقع
+            annotated_frame = results[0].plot()  # الحصول على الإطار مع الرسوم التوضيحية
+
+            # التحقق إذا تم اكتشاف شخص
+            for result in results[0].boxes.data:
+                cls = int(result[5])  # صنف الكائن
+                if cls == 0:  # إذا كان الكائن المكتشف هو شخص
                     # بدء تسجيل الصوت إذا لم يكن هناك تسجيل نشط
                     if not recording_lock.locked():
                         threading.Thread(target=record_audio).start()
-
+            
             # تحويل الإطار إلى JPEG
-            _, buffer = cv2.imencode('.jpg', frame)
+            _, buffer = cv2.imencode('.jpg', annotated_frame)
             frame = buffer.tobytes()
 
             # إرسال الإطار كـ stream
