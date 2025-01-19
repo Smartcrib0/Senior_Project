@@ -1,40 +1,91 @@
 import cv2
-import requests
+from flask import Flask, Response
+import torch
+import pyaudio
+import wave
 import threading
-import time
 
-# عنوان السيرفر
-SERVER_URL = "http://185.37.12.147:5000/process_video"
+# إعداد Flask
+app = Flask(__name__)
+
+# تحميل نموذج YOLOv8
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # YOLOv5 أسرع وأسهل لاستخدام نفس الفكرة مع YOLOv8
+model.classes = [0]  # التركيز فقط على اكتشاف الأشخاص (class 0)
+
+# إعدادات تسجيل الصوت
+FORMAT = pyaudio.paInt16
+CHANNELS = 1
+RATE = 44100
+CHUNK = 1024
+RECORD_SECONDS = 6
+OUTPUT_FILENAME = "output.wav"
 
 # فتح الكاميرا
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("Error: Could not open the camera.")
-    exit()
+camera = cv2.VideoCapture(0)
 
-# إرسال الإطارات إلى السيرفر
-def send_frame_to_server(frame):
-    _, encoded_frame = cv2.imencode('.jpg', frame)  # ترميز الإطار كصورة JPG
-    response = requests.post(SERVER_URL, files={'frame': encoded_frame.tobytes()})
-    print("Server response:", response.json())
+# قفل للتحكم في التسجيل
+recording_lock = threading.Lock()
 
-# التقاط الإطارات وإرسالها إلى السيرفر
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Error: Could not read a frame from the camera.")
-        break
+def record_audio():
+    """تسجيل الصوت لمدة محددة"""
+    with recording_lock:
+        audio = pyaudio.PyAudio()
+        stream = audio.open(format=FORMAT, channels=CHANNELS,
+                            rate=RATE, input=True, frames_per_buffer=CHUNK)
+        print("Recording audio...")
+        frames = []
 
-    # إرسال الإطار في مسار مستقل
-    threading.Thread(target=send_frame_to_server, args=(frame,), daemon=True).start()
+        for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+            data = stream.read(CHUNK)
+            frames.append(data)
 
-    # عرض الإطار محليًا (اختياري)
-    cv2.imshow("Raspberry Pi Camera", frame)
+        print("Audio recording finished.")
 
-    # إنهاء التشغيل عند الضغط على 'q'
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
 
-# تحرير الموارد
-cap.release()
-cv2.destroyAllWindows()
+        # حفظ ملف الصوت
+        wf = wave.open(OUTPUT_FILENAME, 'wb')
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(audio.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(b''.join(frames))
+        wf.close()
+
+# تعريف دالة لتوليد الفيديو
+def generate_frames():
+    while True:
+        success, frame = camera.read()
+        if not success:
+            break
+        else:
+            # تطبيق YOLO على الإطار
+            results = model(frame)
+            for detection in results.xyxy[0]:  # نتائج الكشف
+                x1, y1, x2, y2, conf, cls = detection
+                if int(cls) == 0:  # اكتشاف شخص
+                    # رسم صندوق حول الشخص
+                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                    cv2.putText(frame, f'Person {conf:.2f}', (int(x1), int(y1) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    # بدء تسجيل الصوت إذا لم يكن هناك تسجيل نشط
+                    if not recording_lock.locked():
+                        threading.Thread(target=record_audio).start()
+
+            # تحويل الإطار إلى JPEG
+            _, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+
+            # إرسال الإطار كـ stream
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+# مسار البث المباشر
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# تشغيل الخادم
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=5000)
