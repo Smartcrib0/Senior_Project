@@ -2,10 +2,9 @@ from flask import Flask, jsonify, request, Response
 import Adafruit_DHT  # مكتبة مستشعر DHT
 import sounddevice as sd  # لتسجيل الصوت
 import numpy as np
-import librosa
 import cv2
 import threading
-import time
+import os
 
 # إعدادات المستشعر
 SENSOR = Adafruit_DHT.DHT11  # نوع المستشعر (يمكنك استخدام DHT22 أيضًا)
@@ -31,10 +30,14 @@ def get_sensor_data():
 @app.route('/record', methods=['POST'])
 def record_audio():
     try:
+        # قراءة البيانات من الطلب
         data = request.get_json()
         duration = data.get('duration', 6)  # مدة التسجيل بالثواني
         sample_rate = 22050  # معدل العينة
-        recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='int16')
+        channels = 1  # عدد القنوات (1 للقناة الواحدة)
+
+        # تسجيل الصوت باستخدام sounddevice
+        recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=channels, dtype='int16')
         sd.wait()  # الانتظار حتى ينتهي التسجيل
 
         # تحويل الصوت إلى numpy array وإرجاعه
