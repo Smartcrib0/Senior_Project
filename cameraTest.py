@@ -1,83 +1,65 @@
 import cv2
-from flask import Flask, Response, request, jsonify
 import sounddevice as sd
 import wavio
-import threading
-import time
 import os
+import threading
+from flask import Flask, request, jsonify, Response
 
-# Initialize Flask app
+# إعداد Flask
 app = Flask(__name__)
 
-# Open the camera
-camera = cv2.VideoCapture(0)  # For USB or CSI camera
+# إعدادات الصوت
+AUDIO_FOLDER = "Audio"  # تحديد مسار حفظ الملفات الصوتية
+camera = cv2.VideoCapture(0)  # إذا كنت تستخدم كاميرا USB أو CSI
 
-# Ensure the camera is open
-if not camera.isOpened():
-    camera.open(0)
-
-# Function to record audio
-def record_audio(filename, duration, samplerate=44100):
+# دالة لتسجيل الصوت
+def record_audio(filename, duration=6, samplerate=44100):
     try:
-        print(f"Starting audio recording for {duration} seconds...")
+        print(f"بدء تسجيل الصوت لمدة {duration} ثانية...")
         audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=2, dtype='int16')
-        sd.wait()  # Wait for recording to finish
+        sd.wait()  # انتظار انتهاء التسجيل
         wavio.write(filename, audio, samplerate, sampwidth=2)
-        print(f"Audio file saved: {filename}")
-    except sd.PortAudioError as e:
-        print(f"Audio library error: {e}")
+        print(f"تم حفظ الملف الصوتي: {filename}")
     except Exception as e:
-        print(f"An error occurred while recording audio: {e}")
+        print(f"حدث خطأ أثناء تسجيل الصوت: {e}")
 
-# Endpoint to record audio
+# نقطة النهاية لتسجيل الصوت
 @app.route('/record', methods=['POST'])
 def record():
     try:
-        # Read request data
+        # قراءة البيانات من الطلب
         data = request.get_json()
-        duration = data.get('duration', 6)  # Default recording duration is 6 seconds
-        if not isinstance(duration, (int, float)) or duration <= 0:
-            return jsonify({"status": "error", "message": "Invalid duration"}), 400
+        duration = data.get('duration', 6)  # مدة التسجيل (الافتراضية 6 ثوانٍ)
+        filename = data.get('filename', 'detected_audio.wav')  # اسم الملف الصوتي
 
-        # Generate a unique filename
-        filename = data.get('filename', f'detected_audio_{int(time.time())}.wav')
-
-        # Start audio recording in a separate thread
-        threading.Thread(target=record_audio, args=(filename, duration), daemon=True).start()
+        # تسجيل الصوت في خيط منفصل لتجنب حظر الخادم
+        threading.Thread(target=record_audio, args=(os.path.join(AUDIO_FOLDER, filename), duration), daemon=True).start()
 
         return jsonify({"status": "success", "message": "Recording started", "filename": filename}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# Function to generate video frames
+# دالة لتوليد الفيديو
 def generate_frames():
     while True:
-        # Capture frame from the camera
+        # التقاط الإطار من الكاميرا
         success, frame = camera.read()
         if not success:
-            print("Error capturing frame from the camera. Retrying...")
-            continue
+            break
         else:
-            # Convert the frame to JPEG format
+            # تحويل الإطار إلى صيغة JPEG
             _, buffer = cv2.imencode('.jpg', frame)
             frame = buffer.tobytes()
 
-            # Send the frame as a stream
+            # إرسال الإطار كـ stream
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-# Video feed endpoint
+# مسار البث المباشر
 @app.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-# Release the camera when the server stops
-@app.teardown_appcontext
-def release_camera(error=None):
-    global camera
-    if camera.isOpened():
-        camera.release()
-
-# Run the Flask server
+# تشغيل الخادم
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000)  # ملاحظة: استخدم منفذ مختلف عن الخادم الآخر
