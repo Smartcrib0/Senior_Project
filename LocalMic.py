@@ -1,65 +1,64 @@
-import pyaudio
-import wave
-from flask import Flask, jsonify, send_file
+import cv2
+from flask import Flask, Response, request, jsonify
+import sounddevice as sd
+import wavio
+import threading
+import os
 
-# إعدادات تسجيل الصوت
-FORMAT = pyaudio.paInt16  # صيغة الصوت (16 بت)
-CHANNELS = 1             # قناة واحدة (Mono)
-RATE = 44100             # معدل أخذ العينات (44.1 kHz)
-CHUNK = 1024             # حجم كل حزمة بيانات
-RECORD_SECONDS = 5       # مدة التسجيل بالثواني
-OUTPUT_FILENAME = "output.wav"  # اسم ملف الصوت الناتج
-
-# تطبيق Flask
+# إعداد Flask
 app = Flask(__name__)
 
-def record_audio():
-    """تسجيل الصوت وحفظه في ملف WAV"""
-    audio = pyaudio.PyAudio()
+# فتح الكاميرا
+camera = cv2.VideoCapture(0)  # إذا كنت تستخدم كاميرا USB أو CSI
 
-    # فتح قناة تسجيل
-    stream = audio.open(format=FORMAT, channels=CHANNELS,
-                        rate=RATE, input=True,
-                        frames_per_buffer=CHUNK)
+# دالة لتسجيل الصوت
+def record_audio(filename, duration, samplerate=44100):
+    try:
+        print(f"بدء تسجيل الصوت لمدة {duration} ثانية...")
+        audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=2, dtype='int16')
+        sd.wait()  # انتظار انتهاء التسجيل
+        wavio.write(filename, audio, samplerate, sampwidth=2)
+        print(f"تم حفظ الملف الصوتي: {filename}")
+    except Exception as e:
+        print(f"حدث خطأ أثناء تسجيل الصوت: {e}")
 
-    print("Recording...")
-
-    frames = []
-    for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-        data = stream.read(CHUNK)
-        frames.append(data)
-
-    print("Recording finished!")
-
-    # إنهاء التسجيل
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-
-    # حفظ الصوت في ملف
-    wf = wave.open(OUTPUT_FILENAME, 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(audio.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(b''.join(frames))
-    wf.close()
-
-@app.route('/record', methods=['GET'])
+# نقطة النهاية لتسجيل الصوت
+@app.route('/record', methods=['POST'])
 def record():
-    """تسجيل الصوت عند الطلب"""
     try:
-        record_audio()
-        return jsonify({"message": "Recording successful!", "file": OUTPUT_FILENAME}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # قراءة البيانات من الطلب
+        data = request.get_json()
+        duration = data.get('duration', 6)  # مدة التسجيل (الافتراضية 6 ثوانٍ)
+        filename = data.get('filename', 'detected_audio.wav')  # اسم الملف الصوتي
 
-@app.route('/audio', methods=['GET'])
-def get_audio():
-    """إرجاع ملف الصوت كاستجابة"""
-    try:
-        return send_file(OUTPUT_FILENAME, mimetype="audio/wav", as_attachment=True)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # تسجيل الصوت في خيط منفصل لتجنب حظر الخادم
+        threading.Thread(target=record_audio, args=(filename, duration), daemon=True).start()
 
-if __name__ == '__main__':
+        return jsonify({"status": "success", "message": "Recording started", "filename": filename}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# تعريف دالة لتوليد الفيديو
+def generate_frames():
+    while True:
+        # التقاط الإطار من الكاميرا
+        success, frame = camera.read()
+        if not success:
+            break
+        else:
+            # تحويل الإطار إلى صيغة JPEG
+            _, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+
+            # إرسال الإطار كـ stream
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+# مسار البث المباشر
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# تشغيل الخادم
+if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
