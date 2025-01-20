@@ -12,6 +12,10 @@ app = Flask(__name__)
 # Open the camera
 camera = cv2.VideoCapture(0)  # For USB or CSI camera
 
+# Ensure the camera is open
+if not camera.isOpened():
+    camera.open(0)
+
 # Function to record audio
 def record_audio(filename, duration, samplerate=44100):
     try:
@@ -66,13 +70,6 @@ def generate_frames():
 @app.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-# Ensure the camera is initialized when the server starts
-@app.before_first_request
-def initialize_camera():
-    global camera
-    if not camera.isOpened():
-        camera.open(0)
 
 # Release the camera when the server stops
 @app.teardown_appcontext
