@@ -1,122 +1,63 @@
-import cv2
-import Adafruit_DHT
-import sounddevice as sd
-import wavio
-import os
-import threading
 from flask import Flask, jsonify, request, Response
+import psutil  # للحصول على درجة الحرارة
+import sounddevice as sd  # لتسجيل الصوت
+import numpy as np
+import librosa
+import cv2
+import threading
 import time
 
-# إعدادات المستشعر
-SENSOR = Adafruit_DHT.DHT11  # نوع المستشعر
-PIN = 4  # رقم الـ GPIO المستخدم
+app = Flask(__name__)
 
-# إعدادات الصوت
-AUDIO_FOLDER = "Audio"  # تحديد مسار حفظ الملفات الصوتية
-camera = cv2.VideoCapture(0)  # إذا كنت تستخدم كاميرا USB أو CSI
-
-# تطبيق Flask للبث المباشر
-app_video = Flask(__name__)
-
-# تطبيق Flask لقراءة بيانات المستشعر
-app_sensor = Flask(__name__)
-
-# تطبيق Flask لتسجيل الصوت
-app_audio = Flask(__name__)
-
-# متغيرات لتخزين بيانات المستشعر
-temperature = None
-humidity = None
-
-# دالة لقراءة بيانات المستشعر بشكل دوري
-def read_sensor_data_periodically():
-    global temperature, humidity
-    while True:
-        humidity, temperature = Adafruit_DHT.read_retry(SENSOR, PIN)
-        if humidity is not None and temperature is not None:
-            print(f"تم تحديث بيانات المستشعر: درجة الحرارة = {temperature}°C، الرطوبة = {humidity}%")
-        else:
-            print("فشل في قراءة البيانات من المستشعر")
-        time.sleep(10)  # تحديث البيانات كل 10 ثوانٍ
-
-# نقطة النهاية لعرض بيانات المستشعر
-@app_sensor.route('/sensor', methods=['GET'])
+# موجه لاسترجاع بيانات درجة الحرارة والرطوبة
+@app.route('/sensor', methods=['GET'])
 def get_sensor_data():
-    if temperature is not None and humidity is not None:
-        return jsonify({
-            "temperature": temperature,
-            "humidity": humidity
-        })
-    else:
-        return jsonify({"error": "Failed to read from sensor"}), 500
-
-# دالة لتسجيل الصوت
-def record_audio(filename, duration=6, samplerate=44100):
     try:
-        print(f"بدء تسجيل الصوت لمدة {duration} ثانية...")
-        audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=2, dtype='int16')
-        sd.wait()  # انتظار انتهاء التسجيل
-        wavio.write(filename, audio, samplerate, sampwidth=2)
-        print(f"تم حفظ الملف الصوتي: {filename}")
+        # استخدام psutil لقراءة درجة الحرارة (تحديث هذا بناءً على جهازك)
+        temperature = psutil.sensors_temperatures().get('coretemp', [])[0].current  # قراءة درجة حرارة المعالج
+        humidity = 50  # هذا قيمة تجريبية يمكنك استبدالها بقيم حقيقية باستخدام جهاز استشعار الرطوبة
+        return jsonify({"temperature": temperature, "humidity": humidity})
     except Exception as e:
-        print(f"حدث خطأ أثناء تسجيل الصوت: {e}")
+        print(f"خطأ في الحصول على بيانات المستشعر: {e}")
+        return jsonify({"error": "Failed to get sensor data"}), 500
 
-# نقطة النهاية لتسجيل الصوت
-@app_audio.route('/record', methods=['POST'])
-def record():
+# موجه لتسجيل الصوت
+@app.route('/record', methods=['POST'])
+def record_audio():
     try:
-        # قراءة البيانات من الطلب
         data = request.get_json()
-        duration = data.get('duration', 6)  # مدة التسجيل (الافتراضية 6 ثوانٍ)
-        filename = data.get('filename', 'detected_audio.wav')  # اسم الملف الصوتي
+        duration = data.get('duration', 6)  # مدة التسجيل بالثواني
+        sample_rate = 22050  # معدل العينة
+        recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='int16')
+        sd.wait()  # الانتظار حتى ينتهي التسجيل
 
-        # تسجيل الصوت في خيط منفصل لتجنب حظر الخادم
-        threading.Thread(target=record_audio, args=(os.path.join(AUDIO_FOLDER, filename), duration), daemon=True).start()
-
-        return jsonify({"status": "success", "message": "Recording started", "filename": filename}), 200
+        # تحويل الصوت إلى numpy array وإرجاعه
+        audio_data = recording.flatten().tobytes()
+        return audio_data, 200
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        print(f"خطأ في تسجيل الصوت: {e}")
+        return jsonify({"error": "Failed to record audio"}), 500
 
-# دالة لتوليد الفيديو
+# دالة للبث المباشر
 def generate_frames():
+    # فتح الكاميرا
+    cap = cv2.VideoCapture(0)  # استخدم 0 لكاميرا الكمبيوتر
     while True:
-        # التقاط الإطار من الكاميرا
-        success, frame = camera.read()
-        if not success:
+        ret, frame = cap.read()
+        if not ret:
             break
-        else:
-            # تحويل الإطار إلى صيغة JPEG
-            _, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
+        # تحويل الإطار إلى صيغة JPEG
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        # إرسال الإطار كـ stream
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+    cap.release()
 
-            # إرسال الإطار كـ stream
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-# مسار البث المباشر
-@app_video.route('/video_feed')
+# موجه لبث الفيديو المباشر
+@app.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-# تشغيل الخوادم على منافذ مختلفة
-def run_video_server():
-    app_video.run(host='0.0.0.0', port=5000)  # خادم البث المباشر على المنفذ 5000
-
-def run_sensor_server():
-    app_sensor.run(host='0.0.0.0', port=5001)  # خادم المستشعرات على المنفذ 5001
-
-def run_audio_server():
-    app_audio.run(host='0.0.0.0', port=5002)  # خادم الصوت على المنفذ 5002
-
-if __name__ == "__main__":
-    # تشغيل خيط قراءة بيانات المستشعر بشكل دوري
-    threading.Thread(target=read_sensor_data_periodically, daemon=True).start()
-
-    # تشغيل الخوادم في خيوط منفصلة
-    threading.Thread(target=run_video_server, daemon=True).start()
-    threading.Thread(target=run_sensor_server, daemon=True).start()
-    threading.Thread(target=run_audio_server, daemon=True).start()
-
-    # إبقاء البرنامج يعمل
-    while True:
-        time.sleep(1)
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5001)  # الخادم سيعمل على المنفذ 5001
