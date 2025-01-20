@@ -15,8 +15,14 @@ PIN = 4  # رقم الـ GPIO المستخدم
 AUDIO_FOLDER = "Audio"  # تحديد مسار حفظ الملفات الصوتية
 camera = cv2.VideoCapture(0)  # إذا كنت تستخدم كاميرا USB أو CSI
 
-# تطبيق Flask
-app = Flask(__name__)
+# تطبيق Flask للبث المباشر
+app_video = Flask(__name__)
+
+# تطبيق Flask لقراءة بيانات المستشعر
+app_sensor = Flask(__name__)
+
+# تطبيق Flask لتسجيل الصوت
+app_audio = Flask(__name__)
 
 # متغيرات لتخزين بيانات المستشعر
 temperature = None
@@ -34,7 +40,7 @@ def read_sensor_data_periodically():
         time.sleep(10)  # تحديث البيانات كل 10 ثوانٍ
 
 # نقطة النهاية لعرض بيانات المستشعر
-@app.route('/sensor', methods=['GET'])
+@app_sensor.route('/sensor', methods=['GET'])
 def get_sensor_data():
     if temperature is not None and humidity is not None:
         return jsonify({
@@ -56,7 +62,7 @@ def record_audio(filename, duration=6, samplerate=44100):
         print(f"حدث خطأ أثناء تسجيل الصوت: {e}")
 
 # نقطة النهاية لتسجيل الصوت
-@app.route('/record', methods=['POST'])
+@app_audio.route('/record', methods=['POST'])
 def record():
     try:
         # قراءة البيانات من الطلب
@@ -88,12 +94,29 @@ def generate_frames():
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 # مسار البث المباشر
-@app.route('/video_feed')
+@app_video.route('/video_feed')
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-# تشغيل الخادم
+# تشغيل الخوادم على منافذ مختلفة
+def run_video_server():
+    app_video.run(host='0.0.0.0', port=5000)  # خادم البث المباشر على المنفذ 5000
+
+def run_sensor_server():
+    app_sensor.run(host='0.0.0.0', port=5001)  # خادم المستشعرات على المنفذ 5001
+
+def run_audio_server():
+    app_audio.run(host='0.0.0.0', port=5002)  # خادم الصوت على المنفذ 5002
+
 if __name__ == "__main__":
     # تشغيل خيط قراءة بيانات المستشعر بشكل دوري
     threading.Thread(target=read_sensor_data_periodically, daemon=True).start()
-    app.run(host='0.0.0.0', port=5000)  # ملاحظة: استخدم منفذ مختلف عن الخادم الآخر
+
+    # تشغيل الخوادم في خيوط منفصلة
+    threading.Thread(target=run_video_server, daemon=True).start()
+    threading.Thread(target=run_sensor_server, daemon=True).start()
+    threading.Thread(target=run_audio_server, daemon=True).start()
+
+    # إبقاء البرنامج يعمل
+    while True:
+        time.sleep(1)
