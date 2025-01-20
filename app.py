@@ -27,7 +27,7 @@ RATE = 44100  # معدل العينة
 RECORD_SECONDS = 6  # مدة التسجيل
 
 # مسار حفظ الملفات الصوتية
-AUDIO_PATH = "/home/pi/audio_files/"
+AUDIO_PATH = "Audio"
 if not os.path.exists(AUDIO_PATH):
     os.makedirs(AUDIO_PATH)
 
@@ -101,8 +101,9 @@ def sensor():
 # API لتسجيل الصوت
 @app.route('/record', methods=['POST'])
 def record():
-    audio_file = record_audio()  # تسجيل الصوت
-    return jsonify({"message": "Audio recorded", "file_path": audio_file})
+    # تشغيل التسجيل الصوتي في خيط منفصل
+    threading.Thread(target=record_audio).start()
+    return jsonify({"message": "Audio recording started"})
 
 # تشغيل الخادم Flask
 if __name__ == '__main__':
