@@ -101,8 +101,9 @@ def sensor():
 # API لتسجيل الصوت
 @app.route('/record', methods=['POST'])
 def record():
-    audio_file = record_audio()  # تسجيل الصوت
-    return jsonify({"message": "Audio recorded", "file_path": audio_file})
+    # تشغيل التسجيل الصوتي في خيط منفصل
+    threading.Thread(target=record_audio).start()
+    return jsonify({"message": "Audio recording started"})
 
 # تشغيل الخادم Flask
 if __name__ == '__main__':
