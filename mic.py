@@ -1,34 +1,34 @@
+from flask import Flask, request, jsonify
 import sounddevice as sd
 import wavio
-import requests
-import cv2
 import threading
+import os
 
-# دالة لتسجيل الصوت وإرساله إلى السيرفر
-def record_and_send_audio():
-    duration = 6  # مدة التسجيل بالثواني
+app = Flask(__name__)
+
+# إعداد المتغيرات
+AUDIO_DIR = "recordings"  # مجلد حفظ التسجيلات
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
+# تسجيل الصوت بشكل غير متزامن
+def record_audio(filename, duration=6):
     sample_rate = 44100
     channels = 2
-    filename = "recorded_audio.wav"
-
-    # تسجيل الصوت
     audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=channels, dtype='int16')
     sd.wait()
     wavio.write(filename, audio, sample_rate, sampwidth=2)
 
-    # إرسال الصوت إلى السيرفر
-    with open(filename, 'rb') as audio_file:
-        files = {'file': audio_file}
-        response = requests.post("http://185.37.12.147:5000/process_audio", files=files)
-        print("Audio response:", response.json())
+@app.route('/start_recording', methods=['POST'])
+def start_recording():
+    try:
+        duration = int(request.json.get("duration", 6))  # المدة الافتراضية 6 ثواني
+        filename = os.path.join(AUDIO_DIR, "detected_audio.wav")
 
-# في دالة إرسال الفيديو، بناءً على استجابة السيرفر:
-def send_frame_to_server(frame):
-    _, encoded_frame = cv2.imencode('.jpg', frame)
-    response = requests.post(SERVER_URL, files={'frame': encoded_frame.tobytes()})
-    server_response = response.json()
-    print("Server response:", server_response)
+        # تشغيل التسجيل في خيط منفصل
+        threading.Thread(target=record_audio, args=(filename, duration), daemon=True).start()
+        return jsonify({"status": "success", "message": "Recording started."}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-    # إذا اكتشف الطفل، قم بتسجيل الصوت
-    if server_response.get("detected"):
-        record_and_send_audio()
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5001)
