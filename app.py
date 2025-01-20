@@ -27,7 +27,7 @@ RATE = 44100  # معدل العينة
 RECORD_SECONDS = 6  # مدة التسجيل
 
 # مسار حفظ الملفات الصوتية
-AUDIO_PATH = "/home/pi/audio_files/"
+AUDIO_PATH = "Audio"
 if not os.path.exists(AUDIO_PATH):
     os.makedirs(AUDIO_PATH)
 
