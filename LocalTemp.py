@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, Response
-import psutil  # للحصول على درجة الحرارة
+import Adafruit_DHT  # مكتبة مستشعر DHT
 import sounddevice as sd  # لتسجيل الصوت
 import numpy as np
 import librosa
@@ -7,16 +7,22 @@ import cv2
 import threading
 import time
 
+# إعدادات المستشعر
+SENSOR = Adafruit_DHT.DHT11  # نوع المستشعر (يمكنك استخدام DHT22 أيضًا)
+PIN = 4  # رقم الـ GPIO الموصل عليه المستشعر
+
 app = Flask(__name__)
 
 # موجه لاسترجاع بيانات درجة الحرارة والرطوبة
 @app.route('/sensor', methods=['GET'])
 def get_sensor_data():
     try:
-        # استخدام psutil لقراءة درجة الحرارة (تحديث هذا بناءً على جهازك)
-        temperature = psutil.sensors_temperatures().get('coretemp', [])[0].current  # قراءة درجة حرارة المعالج
-        humidity = 50  # هذا قيمة تجريبية يمكنك استبدالها بقيم حقيقية باستخدام جهاز استشعار الرطوبة
-        return jsonify({"temperature": temperature, "humidity": humidity})
+        # قراءة درجة الحرارة والرطوبة من المستشعر
+        humidity, temperature = Adafruit_DHT.read_retry(SENSOR, PIN)
+        if humidity is not None and temperature is not None:
+            return jsonify({"temperature": temperature, "humidity": humidity})
+        else:
+            return jsonify({"error": "Failed to read from sensor"}), 500
     except Exception as e:
         print(f"خطأ في الحصول على بيانات المستشعر: {e}")
         return jsonify({"error": "Failed to get sensor data"}), 500
