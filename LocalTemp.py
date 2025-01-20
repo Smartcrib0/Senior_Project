@@ -1,15 +1,20 @@
-from flask import Flask, jsonify, request, Response
+import time
 import Adafruit_DHT  # مكتبة مستشعر DHT
 import sounddevice as sd  # لتسجيل الصوت
 import numpy as np
 import cv2
 import threading
-import os
+from flask import Flask, jsonify, request, Response
 
-# إعدادات المستشعر
+# إعدادات المستشعر DHT
 SENSOR = Adafruit_DHT.DHT11  # نوع المستشعر (يمكنك استخدام DHT22 أيضًا)
 PIN = 4  # رقم الـ GPIO الموصل عليه المستشعر
 
+# إعدادات التسجيل الصوتي
+sample_rate = 22050  # معدل العينة للصوت
+channels = 1  # عدد القنوات (1 للقناة الواحدة)
+
+# إعداد الخادم Flask
 app = Flask(__name__)
 
 # موجه لاسترجاع بيانات درجة الحرارة والرطوبة
@@ -30,11 +35,8 @@ def get_sensor_data():
 @app.route('/record', methods=['POST'])
 def record_audio():
     try:
-        # قراءة البيانات من الطلب
         data = request.get_json()
         duration = data.get('duration', 6)  # مدة التسجيل بالثواني
-        sample_rate = 22050  # معدل العينة
-        channels = 1  # عدد القنوات (1 للقناة الواحدة)
 
         # تسجيل الصوت باستخدام sounddevice
         recording = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=channels, dtype='int16')
@@ -68,5 +70,8 @@ def generate_frames():
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+# تشغيل الخادم
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5001)  # الخادم سيعمل على المنفذ 5001
+    app.run(host="0.0.0.0", port=5000)  # الخادم سيعمل على المنفذ 5000 للبث المباشر
+
+# يمكنك الآن تشغيل Flask على المنفذ 5000 للكاميرا و 5001 للصوت و 5002 للحرارة
