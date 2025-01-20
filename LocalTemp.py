@@ -5,6 +5,7 @@ import wavio
 import os
 import threading
 from flask import Flask, jsonify, request, Response
+import time
 
 # إعدادات المستشعر
 SENSOR = Adafruit_DHT.DHT11  # نوع المستشعر
@@ -17,12 +18,25 @@ camera = cv2.VideoCapture(0)  # إذا كنت تستخدم كاميرا USB أو
 # تطبيق Flask
 app = Flask(__name__)
 
-# دالة لقراءة بيانات المستشعر
+# متغيرات لتخزين بيانات المستشعر
+temperature = None
+humidity = None
+
+# دالة لقراءة بيانات المستشعر بشكل دوري
+def read_sensor_data_periodically():
+    global temperature, humidity
+    while True:
+        humidity, temperature = Adafruit_DHT.read_retry(SENSOR, PIN)
+        if humidity is not None and temperature is not None:
+            print(f"تم تحديث بيانات المستشعر: درجة الحرارة = {temperature}°C، الرطوبة = {humidity}%")
+        else:
+            print("فشل في قراءة البيانات من المستشعر")
+        time.sleep(10)  # تحديث البيانات كل 10 ثوانٍ
+
+# نقطة النهاية لعرض بيانات المستشعر
 @app.route('/sensor', methods=['GET'])
 def get_sensor_data():
-    # قراءة البيانات من المستشعر
-    humidity, temperature = Adafruit_DHT.read_retry(SENSOR, PIN)
-    if humidity is not None and temperature is not None:
+    if temperature is not None and humidity is not None:
         return jsonify({
             "temperature": temperature,
             "humidity": humidity
@@ -80,4 +94,6 @@ def video_feed():
 
 # تشغيل الخادم
 if __name__ == "__main__":
+    # تشغيل خيط قراءة بيانات المستشعر بشكل دوري
+    threading.Thread(target=read_sensor_data_periodically, daemon=True).start()
     app.run(host='0.0.0.0', port=5000)  # ملاحظة: استخدم منفذ مختلف عن الخادم الآخر
