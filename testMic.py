@@ -1,21 +1,22 @@
-from flask import Flask, Response, request, send_file
+from flask import Flask, Response, request, send_file, jsonify
 import cv2
 import sounddevice as sd
 import numpy as np
 import wave
 import os
 import threading
-import time
+import requests
+import wavio
 
 app = Flask(__name__)
 
-# إعداد مسار الملف المؤقت لتسجيل الصوت
+# إعداد المسارات والمنافذ
 TEMP_AUDIO_FILE = "temp_audio.wav"
 VIDEO_PORT = 5000
 AUDIO_PORT = 5001
 
 # إعداد الكاميرا
-camera = cv2.VideoCapture(0)  # استخدام الكاميرا الافتراضية
+camera = cv2.VideoCapture(0)
 if not camera.isOpened():
     raise RuntimeError("Error: Could not open the camera.")
 
@@ -32,16 +33,15 @@ def generate_video_stream():
 
 @app.route('/video_feed', methods=['GET'])
 def video_feed():
-    return Response(generate_video_stream(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate_video_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 # تسجيل الصوت
 def record_audio(duration, filename):
     try:
-        fs = 22050  # معدل العينة (هرتز)
+        fs = 22050
         print("Recording audio...")
         audio = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
-        sd.wait()  # الانتظار حتى ينتهي التسجيل
+        sd.wait()
         print("Recording finished.")
         with wave.open(filename, 'wb') as wf:
             wf.setnchannels(1)
@@ -50,14 +50,14 @@ def record_audio(duration, filename):
             wf.writeframes(audio.tobytes())
         return True
     except Exception as e:
-        print(f"خطأ أثناء تسجيل الصوت: {e}")
+        print(f"Error recording audio: {e}")
         return False
 
 @app.route('/record', methods=['POST'])
 def record():
     try:
         data = request.get_json()
-        duration = data.get("duration", 6)  # الافتراضي: 6 ثوانٍ
+        duration = data.get("duration", 6)
         if record_audio(duration, TEMP_AUDIO_FILE):
             return send_file(TEMP_AUDIO_FILE, as_attachment=True)
         else:
@@ -68,6 +68,29 @@ def record():
         if os.path.exists(TEMP_AUDIO_FILE):
             os.remove(TEMP_AUDIO_FILE)
 
+# تسجيل الصوت وإرساله
+def record_audio_and_send(duration=6, filename="detected_audio.wav", laptop_ip="192.168.1.100", laptop_port=5000):
+    sample_rate = 44100
+    channels = 2
+
+    try:
+        print("Recording audio...")
+        audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=channels, dtype='int16')
+        sd.wait()
+        wavio.write(filename, audio, sample_rate, sampwidth=2)
+        print(f"Audio recorded and saved to {filename}")
+
+        with open(filename, 'rb') as f:
+            response = requests.post(f'http://{laptop_ip}:{laptop_port}/upload', files={'file': f})
+        
+        if response.status_code == 200:
+            print("File sent successfully to the laptop")
+        else:
+            print(f"Failed to send file: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"Error recording or sending audio: {e}")
+
+# بدء تشغيل الخوادم
 if __name__ == '__main__':
     threading.Thread(target=lambda: app.run(host='0.0.0.0', port=AUDIO_PORT, debug=False), daemon=True).start()
     app.run(host='0.0.0.0', port=VIDEO_PORT, debug=False)
