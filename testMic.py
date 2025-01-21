@@ -1,32 +1,52 @@
+from flask import Flask, request, jsonify, send_file
 import sounddevice as sd
+import numpy as np
 import wave
-import socket
+import os
 
-# إعدادات الصوت
-SAMPLE_RATE = 44100  # عدد العينات في الثانية
-DURATION = 6  # مدة التسجيل بالثواني
-FILENAME = "recording.wav"  # اسم ملف التسجيل
+app = Flask(__name__)
 
-# تسجيل الصوت وحفظه كملف
-def record_audio(filename, duration, sample_rate):
-    print("Recording...")
-    audio_data = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='int16')
-    sd.wait()  # انتظار انتهاء التسجيل
-    with wave.open(filename, 'wb') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        wf.writeframes(audio_data.tobytes())
-    print("Recording saved:", filename)
+# إعداد المسار المؤقت لحفظ تسجيل الصوت
+TEMP_AUDIO_FILE = "temp_audio.wav"
 
-# إرسال الملف عبر الشبكة
-def send_file(filename, server_ip, server_port):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-        client_socket.connect((server_ip, server_port))
-        with open(filename, "rb") as file:
-            client_socket.sendall(file.read())
-    print("File sent to server:", server_ip)
+def record_audio(duration, filename):
+    try:
+        # تسجيل الصوت باستخدام sounddevice
+        fs = 22050  # معدل العينة (هرتز)
+        print("Recording audio...")
+        audio = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
+        sd.wait()  # الانتظار حتى ينتهي التسجيل
+        print("Recording finished.")
 
-if __name__ == "__main__":
-    record_audio(FILENAME, DURATION, SAMPLE_RATE)
-    send_file(FILENAME, "192.168.173.235", 5000)  # استبدل 5000 بالمنفذ المستخدم على اللابتوب
+        # حفظ التسجيل كملف WAV
+        with wave.open(filename, 'wb') as wf:
+            wf.setnchannels(1)  # قناة واحدة (أحادي)
+            wf.setsampwidth(2)  # حجم العينة 2 بايت (16 بت)
+            wf.setframerate(fs)
+            wf.writeframes(audio.tobytes())
+        return True
+    except Exception as e:
+        print(f"خطأ أثناء تسجيل الصوت: {e}")
+        return False
+
+@app.route('/record', methods=['POST'])
+def record():
+    try:
+        # الحصول على مدة التسجيل من الطلب
+        data = request.get_json()
+        duration = data.get("duration", 6)  # الافتراضي: 6 ثوانٍ
+
+        # تسجيل الصوت
+        if record_audio(duration, TEMP_AUDIO_FILE):
+            return send_file(TEMP_AUDIO_FILE, as_attachment=True)
+        else:
+            return jsonify({"error": "Failed to record audio"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        # حذف الملف المؤقت بعد إرساله
+        if os.path.exists(TEMP_AUDIO_FILE):
+            os.remove(TEMP_AUDIO_FILE)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001)
