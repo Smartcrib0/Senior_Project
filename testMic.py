@@ -1,10 +1,11 @@
-from flask import Flask, Response, request, jsonify, send_file
+from flask import Flask, Response, request, send_file
 import cv2
-import threading
 import sounddevice as sd
 import numpy as np
 import wave
 import os
+import threading
+import time
 
 app = Flask(__name__)
 
