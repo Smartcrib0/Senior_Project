@@ -22,7 +22,7 @@ server_url_video = "http://192.168.173.235:5000"
 server_url_audio = "http://192.168.173.235:5001"
 server_url_sensor = "http://192.168.173.235:5002"
 
-DHT_SENSOR = Adafruit_DHT.DHT22
+DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 4  # رقم الـ PIN المتصل بالحساس
 
 def stream_video():
