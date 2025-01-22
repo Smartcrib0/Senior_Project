@@ -1,4 +1,4 @@
-from flask import Flask, Response, request, send_file
+from flask import Flask, Response, request, send_file,jsonify
 import cv2
 import sounddevice as sd
 import numpy as np
@@ -99,7 +99,7 @@ import sounddevice as sd
 import wavio
 import requests
 
-def record_audio_and_send(duration=6, filename="detected_audio.wav", laptop_ip="192.168.1.100", laptop_port=5000):
+def record_audio_and_send(duration=6, filename="detected_audio.wav", laptop_ip="192.168.173.191", laptop_port=5000):
     """Function to record audio and send it to a laptop."""
     sample_rate = 44100
     channels = 2
@@ -123,4 +123,4 @@ def record_audio_and_send(duration=6, filename="detected_audio.wav", laptop_ip="
         print(f"خطأ أثناء تسجيل الصوت أو الإرسال: {e}")
 
 # استدعاء الوظيفة مع عنوان IP والبوابة الخاصة باللابتوب
-record_audio_and_send(laptop_ip="192.168.1.100", laptop_port=5000)
+record_audio_and_send(laptop_ip="192.168.173.191", laptop_port=5000)
