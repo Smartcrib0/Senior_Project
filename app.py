@@ -18,9 +18,9 @@ GPIO.setup(dc_motor_pin, GPIO.OUT)
 servo_pwm = GPIO.PWM(servo_pin, 50)
 servo_pwm.start(0)
 
-server_url_video = "http://192.168.173.235:5000"
-server_url_audio = "http://192.168.173.235:5001"
-server_url_sensor = "http://192.168.173.235:5002"
+server_url_video = "http://192.168.173.235:135"
+server_url_audio = "http://192.168.173.235:445"
+server_url_sensor = "http://192.168.173.235:1521"
 
 DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 4  # رقم الـ PIN المتصل بالحساس
