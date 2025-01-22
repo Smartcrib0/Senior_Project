@@ -22,51 +22,70 @@ server_url_video = "http://192.168.173.235:5000"
 server_url_audio = "http://192.168.173.235:5001"
 server_url_sensor = "http://192.168.173.235:5002"
 
-DHT_SENSOR = Adafruit_DHT.DHT22
+DHT_SENSOR = Adafruit_DHT.DHT11
 DHT_PIN = 4  # رقم الـ PIN المتصل بالحساس
 
 def stream_video():
     cap = cv2.VideoCapture(0)
     while True:
         ret, frame = cap.read()
-        if ret:
-            _, buffer = cv2.imencode('.jpg', frame)
-            response = requests.post(server_url_video + "/upload_frame", files={"frame": buffer.tobytes()})
-            if response.json().get("child_detected"):
+        if not ret:
+            print("Error: Unable to access camera")
+            continue
+        _, buffer = cv2.imencode('.jpg', frame)
+        try:
+            response = requests.post(
+                server_url_video + "/upload_frame", 
+                files={"frame": buffer.tobytes()},
+                timeout=5
+            )
+            response_data = response.json()
+            if response_data.get("child_detected"):
                 audio_thread = threading.Thread(target=record_audio, args=("audio.wav",))
                 audio_thread.start()
                 audio_thread.join()
                 if analyze_audio("audio.wav"):
-                    action_thread = threading.Thread(target=perform_actions)
-                    action_thread.start()
+                    perform_actions()
+        except Exception as e:
+            print(f"Error in stream_video: {e}")
         time.sleep(0.1)
 
 def record_audio(filename):
-    CHUNK = 1024
-    FORMAT = pyaudio.paInt16
-    CHANNELS = 1
-    RATE = 44100
-    RECORD_SECONDS = 10
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
-    frames = []
-    for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-        data = stream.read(CHUNK)
-        frames.append(data)
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-    wf = wave.open(filename, 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(p.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(b''.join(frames))
-    wf.close()
+    try:
+        CHUNK = 1024
+        FORMAT = pyaudio.paInt16
+        CHANNELS = 1
+        RATE = 44100
+        RECORD_SECONDS = 10
+        p = pyaudio.PyAudio()
+        stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
+        frames = []
+        for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+            data = stream.read(CHUNK)
+            frames.append(data)
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+        with wave.open(filename, 'wb') as wf:
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(p.get_sample_size(FORMAT))
+            wf.setframerate(RATE)
+            wf.writeframes(b''.join(frames))
+    except Exception as e:
+        print(f"Error in record_audio: {e}")
 
 def analyze_audio(filename):
-    with open(filename, 'rb') as f:
-        response = requests.post(server_url_audio + "/analyze_audio", files={"audio": f})
-    return response.json().get("crying") == "yes"
+    try:
+        with open(filename, 'rb') as f:
+            response = requests.post(
+                server_url_audio + "/analyze_audio", 
+                files={"audio": f},
+                timeout=5
+            )
+        return response.json().get("crying") == "yes"
+    except Exception as e:
+        print(f"Error in analyze_audio: {e}")
+        return False
 
 def perform_actions():
     shake_crib()
@@ -74,25 +93,37 @@ def perform_actions():
     activate_dc_motor()
 
 def shake_crib():
-    servo_pwm.ChangeDutyCycle(7)
-    time.sleep(2)
-    servo_pwm.ChangeDutyCycle(0)
+    try:
+        servo_pwm.ChangeDutyCycle(7)
+        time.sleep(2)
+        servo_pwm.ChangeDutyCycle(0)
+    except Exception as e:
+        print(f"Error in shake_crib: {e}")
 
 def play_music():
-    subprocess.call(["mpg321", "0117.MP3"])
+    try:
+        subprocess.call(["mpg321", "0117.MP3"])
+    except Exception as e:
+        print(f"Error in play_music: {e}")
 
 def activate_dc_motor():
-    GPIO.output(dc_motor_pin, GPIO.HIGH)
-    time.sleep(2)
-    GPIO.output(dc_motor_pin, GPIO.LOW)
+    try:
+        GPIO.output(dc_motor_pin, GPIO.HIGH)
+        time.sleep(2)
+        GPIO.output(dc_motor_pin, GPIO.LOW)
+    except Exception as e:
+        print(f"Error in activate_dc_motor: {e}")
 
 def read_and_send_sensor_data():
     while True:
-        humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
-        if humidity is not None and temperature is not None:
-            data = {"temperature": temperature, "humidity": humidity}
-            requests.post(server_url_sensor + "/upload_sensor_data", json=data)
-        time.sleep(5)  # إرسال البيانات كل 5 ثوانٍ
+        try:
+            humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
+            if humidity is not None and temperature is not None:
+                data = {"temperature": temperature, "humidity": humidity}
+                requests.post(server_url_sensor + "/upload_sensor_data", json=data, timeout=5)
+            time.sleep(5)  # إرسال البيانات كل 5 ثوانٍ
+        except Exception as e:
+            print(f"Error in read_and_send_sensor_data: {e}")
 
 video_thread = threading.Thread(target=stream_video)
 sensor_thread = threading.Thread(target=read_and_send_sensor_data)
