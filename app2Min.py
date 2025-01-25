@@ -404,3 +404,6 @@ sensor_thread = threading.Thread(target=read_and_send_sensor_data)
 
 video_thread.start()
 sensor_thread.start()
+
+
+
