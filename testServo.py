@@ -1,41 +1,167 @@
+import requests
+import threading
+import pyaudio
+import wave
 import RPi.GPIO as GPIO
 import time
+import subprocess
+import os
+import cv2
+import Adafruit_DHT
 
-# Set the GPIO mode to BCM
-GPIO.setmode(GPIO.BCM)
-
-# Set the GPIO pin connected to the servo motor
+# إعداد GPIO
 servo_pin = 18
-
-# Set up the GPIO pin as an output
+dc_motor_pin = 17
+GPIO.setmode(GPIO.BCM)
 GPIO.setup(servo_pin, GPIO.OUT)
+GPIO.setup(dc_motor_pin, GPIO.OUT)
 
-# Create a PWM instance on the servo pin with a frequency of 50Hz
-pwm = GPIO.PWM(servo_pin, 50)  # 50Hz for most servos
+servo_pwm = GPIO.PWM(servo_pin, 50)
+servo_pwm.start(0)
 
-# Start the PWM with a neutral duty cycle (stopped position)
-pwm.start(0)
+server_url_video = "http://192.168.211.235:5000"
+server_url_audio = "http://192.168.211.235:5001"
+server_url_sensor = "http://192.168.211.235:5050"
 
-# Function to set servo speed and direction
-def set_servo_rotation(speed):
-    """
-    Controls the rotation of a continuous rotation servo.
-    - Neutral position (stopped): ~7.5% duty cycle
-    - Rotate clockwise: Duty cycle < 7.5%
-    - Rotate counterclockwise: Duty cycle > 7.5%
-    - Speed varies as you move further from 7.5%
-    """
-    pwm.ChangeDutyCycle(0.075)  # Set the duty cycle
-    time.sleep(1)             # Small delay for stability
+DHT_SENSOR = Adafruit_DHT.DHT11
+DHT_PIN = 4  # رقم الـ PIN المتصل بالحساس
 
-try:
-    print("Rotating servo endlessly...")
+# متغيرات الحالة
+child_present = False
+stop_actions = False
+actions_running = False
+
+# Function to move the servo to a specific angle
+def move_servo(angle):
+    # The duty cycle for a given angle
+    duty = angle / 18 + 2
+    GPIO.output(servo_pin, True)
+    servo_pwm.ChangeDutyCycle(duty)
+    time.sleep(0.5)  # Wait for the servo to reach the position
+    GPIO.output(servo_pin, False)
+    servo_pwm.ChangeDutyCycle(0)
+
+# Modified function to rock the crib
+def shake_crib_timed():
+    global stop_actions
+    start_time = time.time()
+    while time.time() - start_time < 30:  # تشغيل لمدة 30 ثانية
+        if stop_actions:
+            break
+        try:
+            # Rocking motion: 45 -> 90 -> 0 degrees
+            move_servo(45)
+            time.sleep(0.1)
+            move_servo(90)
+            time.sleep(0.1)
+            move_servo(0)
+            time.sleep(0.1)
+        except Exception as e:
+            print(f"Error in shake_crib_timed: {e}")
+
+# دالة لتشغيل الموسيقى لمدة 30 ثانية
+def play_music_timed():
+    global stop_actions
+    try:
+        file_path = os.path.join(os.getcwd(), "0117.MP3")
+        process = subprocess.Popen(["mpg321", file_path])
+        start_time = time.time()
+        while time.time() - start_time < 30:  # تشغيل لمدة 30 ثانية
+            if stop_actions:
+                process.terminate()  # إيقاف الموسيقى
+                break
+        process.terminate()
+    except Exception as e:
+        print(f"Error in play_music_timed: {e}")
+
+# دالة لتشغيل المحرك DC لمدة 30 ثانية
+def activate_dc_motor_timed():
+    global stop_actions
+    start_time = time.time()
+    while time.time() - start_time < 30:  # تشغيل لمدة 30 ثانية
+        if stop_actions:
+            break
+        try:
+            GPIO.output(dc_motor_pin, GPIO.HIGH)
+            time.sleep(2)
+            GPIO.output(dc_motor_pin, GPIO.LOW)
+        except Exception as e:
+            print(f"Error in activate_dc_motor: {e}")
+
+# دالة لتنفيذ جميع الإجراءات بالتوازي
+def perform_actions_parallel():
+    global stop_actions, actions_running
+    actions_running = True
+    stop_actions = False
+
+    # إنشاء خيوط لتنفيذ الإجراءات بالتوازي
+    shake_thread = threading.Thread(target=shake_crib_timed)
+    music_thread = threading.Thread(target=play_music_timed)
+    motor_thread = threading.Thread(target=activate_dc_motor_timed)
+
+    shake_thread.start()
+    music_thread.start()
+    motor_thread.start()
+
+    # انتظار انتهاء جميع الخيوط
+    shake_thread.join()
+    music_thread.join()
+    motor_thread.join()
+
+    actions_running = False
+    print("All actions completed.")
+
+# دالة لقراءة بيانات الحساس وإرسالها
+def read_and_send_sensor_data():
     while True:
-        set_servo_rotation(6.5)  # Rotate clockwise (adjust as needed for your servo)
-        time.sleep(0.001)         # Optional delay to control responsiveness
-except KeyboardInterrupt:
-    print("Program stopped by user.")
-finally:
-    # Stop PWM and clean up GPIO pins when the program ends
-    pwm.stop()
-    GPIO.cleanup()
+        try:
+            humidity, temperature = Adafruit_DHT.read(DHT_SENSOR, DHT_PIN)
+            if humidity is not None and temperature is not None:
+                data = {"temperature": temperature, "humidity": humidity}
+                try:
+                    response = requests.post(server_url_sensor + "/upload_sensor_data", json=data, timeout=5)
+                    if response.status_code != 200:
+                        print(f"Error: Failed to send sensor data, status code {response.status_code}")
+                except requests.exceptions.RequestException as e:
+                    print(f"Error in sending sensor data: {e}")
+            time.sleep(60)  # إرسال البيانات كل 60 ثانية
+        except Exception as e:
+            print(f"Error in read_and_send_sensor_data: {e}")
+
+# دالة لمتابعة الفيديو وتحليل الإطارات
+def stream_video():
+    global child_present, stop_actions, actions_running
+    cap = cv2.VideoCapture(0)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: Unable to access camera")
+            continue
+        _, buffer = cv2.imencode('.jpg', frame)
+        try:
+            response = requests.post(
+                server_url_video + "/upload_frame",
+                files={"frame": buffer.tobytes()},
+                timeout=10
+            )
+            if response.status_code == 200:
+                response_data = response.json()
+                child_present = response_data.get("child_detected", False)
+
+                if child_present:
+                    print("Child detected.")
+                    # بدء الوظائف مباشرةً عند اكتشاف الطفل
+                    if not actions_running:
+                        perform_actions_parallel()
+                else:
+                    print("No child detected.")
+        except requests.exceptions.RequestException as e:
+            print(f"Error in stream_video: {e}")
+        time.sleep(0.1)
+
+# تشغيل الخيوط
+video_thread = threading.Thread(target=stream_video)
+sensor_thread = threading.Thread(target=read_and_send_sensor_data)
+
+video_thread.start()
+sensor_thread.start()
