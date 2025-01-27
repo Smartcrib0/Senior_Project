@@ -53,8 +53,19 @@ def shake_crib_timed():
 
 # دالة لتشغيل الموسيقى لمدة 30 ثانية
 def play_music_timed():
+    def play_music_timed():
     global stop_actions, music_active
     music_active = True
+
+    # إرسال حالة السماعة (تشغيل)
+    try:
+        speaker_data = {"speaker_active": True}
+        response = requests.post(server_url_speaker + "/speaker_status", json=speaker_data, timeout=5)
+        if response.status_code != 200:
+            print(f"Error: Failed to send speaker status (start), status code {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error in sending speaker start status: {e}")
+
     try:
         file_path = os.path.join(os.getcwd(), "0117.MP3")
         process = subprocess.Popen(["mpg321", file_path])
@@ -66,6 +77,7 @@ def play_music_timed():
         process.terminate()
     except Exception as e:
         print(f"Error in play_music_timed: {e}")
+
     music_active = False
 
 # دالة لتشغيل المحرك DC لمدة 30 ثانية
