@@ -53,7 +53,6 @@ def shake_crib_timed():
 
 # دالة لتشغيل الموسيقى لمدة 30 ثانية
 def play_music_timed():
-    def play_music_timed():
     global stop_actions, music_active
     music_active = True
 
