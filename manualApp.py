@@ -52,32 +52,59 @@ def shake_crib_timed():
     # servo_active = False
 
 # دالة لتشغيل الموسيقى لمدة 30 ثانية
+# def play_music_timed():
+#     global stop_actions, music_active
+#     music_active = True
+
+#     # إرسال حالة السماعة (تشغيل)
+#     try:
+#         speaker_data = {"speaker_active": True}
+#         response = requests.post(server_url_speaker + "/speaker_status", json=speaker_data, timeout=5)
+#         if response.status_code != 200:
+#             print(f"Error: Failed to send speaker status (start), status code {response.status_code}")
+#     except requests.exceptions.RequestException as e:
+#         print(f"Error in sending speaker start status: {e}")
+
+#     try:
+#         file_path = os.path.join(os.getcwd(), "0117.MP3")
+#         process = subprocess.Popen(["mpg321", file_path])
+#         start_time = time.time()
+#         while time.time() - start_time < 30:  # تشغيل لمدة 30 ثانية
+#             if stop_actions:
+#                 process.terminate()  # إيقاف الموسيقى
+#                 break
+#         process.terminate()
+#     except Exception as e:
+#         print(f"Error in play_music_timed: {e}")
+
+    # music_active = False
 def play_music_timed():
-    global stop_actions, music_active
-    music_active = True
+    global stop_actions
 
-    # إرسال حالة السماعة (تشغيل)
     try:
-        speaker_data = {"speaker_active": True}
-        response = requests.post(server_url_speaker + "/speaker_status", json=speaker_data, timeout=5)
+        # طلب تشغيل الموسيقى
+        response = requests.post(server_url_speaker + "/speaker_status", json={"music_active": 1}, timeout=5)
         if response.status_code != 200:
-            print(f"Error: Failed to send speaker status (start), status code {response.status_code}")
+            print(f"Error: Failed to start music playback, status code {response.status_code}")
+            return
     except requests.exceptions.RequestException as e:
-        print(f"Error in sending speaker start status: {e}")
+        print(f"Error starting music playback: {e}")
+        return
+
+    # الانتظار لمدة 30 ثانية
+    start_time = time.time()
+    while time.time() - start_time < 30:
+        if stop_actions:  # إذا طلب المستخدم الإيقاف
+            break
+        time.sleep(1)
 
     try:
-        file_path = os.path.join(os.getcwd(), "0117.MP3")
-        process = subprocess.Popen(["mpg321", file_path])
-        start_time = time.time()
-        while time.time() - start_time < 30:  # تشغيل لمدة 30 ثانية
-            if stop_actions:
-                process.terminate()  # إيقاف الموسيقى
-                break
-        process.terminate()
-    except Exception as e:
-        print(f"Error in play_music_timed: {e}")
-
-    music_active = False
+        # طلب إيقاف الموسيقى
+        response = requests.post(server_url_speaker + "/speaker_status", json={"music_active": 0}, timeout=5)
+        if response.status_code != 200:
+            print(f"Error: Failed to stop music playback, status code {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error stopping music playback: {e}")
 
 # دالة لتشغيل المحرك DC لمدة 30 ثانية
 def activate_dc_motor_timed():
