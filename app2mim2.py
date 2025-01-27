@@ -110,7 +110,7 @@ def read_and_send_sensor_data():
                         print(f"Error: Failed to send sensor data, status code {response.status_code}")
                 except requests.exceptions.RequestException as e:
                     print(f"Error in sending sensor data: {e}")
-            time.sleep(60)  # إرسال البيانات كل 5 ثوانٍ
+            time.sleep(5)  # إرسال البيانات كل 5 ثوانٍ
         except Exception as e:
             print(f"Error in read_and_send_sensor_data: {e}")
 
@@ -143,7 +143,7 @@ def stream_video():
                     print("No child detected.")
         except requests.exceptions.RequestException as e:
             print(f"Error in stream_video: {e}")
-        time.sleep(0.1)
+        time.sleep(30)
 
 # تشغيل الخيوط
 video_thread = threading.Thread(target=stream_video)
